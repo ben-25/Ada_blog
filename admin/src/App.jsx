@@ -3,10 +3,12 @@ import PageHeader from "./components/PageHeader.jsx";
 import ArticleList from "./components/ArticleList.jsx";
 import ArticleForm from "./components/ArticleForm.jsx";
 import LoadingMessage from "./components/LoadingMessage.jsx";
+import FeedbackMessage from "./components/FeedbackMessage.jsx";
 import {
   fetchRecentArticles,
   createArticle,
   updateArticle,
+  deleteArticle,
 } from "./api/articles.js";
 import "./App.css";
 
@@ -15,9 +17,11 @@ function App() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // "list" | "create" | "edit"
   const [mode, setMode] = useState("list");
   const [editingArticle, setEditingArticle] = useState(null);
+
+  // Bandeau action (création / édition / suppression) — remplace alert()
+  const [feedback, setFeedback] = useState(null);
 
   const loadArticles = useCallback(async () => {
     try {
@@ -37,17 +41,23 @@ function App() {
     loadArticles();
   }, [loadArticles]);
 
+  function clearFeedback() {
+    setFeedback(null);
+  }
+
   function showList() {
     setMode("list");
     setEditingArticle(null);
   }
 
   function showCreate() {
+    clearFeedback();
     setMode("create");
     setEditingArticle(null);
   }
 
   function handleEdit(id) {
+    clearFeedback();
     const article = articles.find((a) => a.id === id);
     if (article) {
       setEditingArticle(article);
@@ -59,9 +69,13 @@ function App() {
     try {
       await createArticle(payload);
       await loadArticles();
+      setFeedback({ type: "success", message: "Article créé." });
       showList();
     } catch (err) {
-      alert(err.message || "Erreur à la création");
+      setFeedback({
+        type: "error",
+        message: err.message || "Erreur à la création.",
+      });
     }
   }
 
@@ -73,14 +87,40 @@ function App() {
         publie: payload.publie,
       });
       await loadArticles();
+      setFeedback({ type: "success", message: "Article enregistré." });
       showList();
     } catch (err) {
-      alert(err.message || "Erreur à la modification");
+      setFeedback({
+        type: "error",
+        message: err.message || "Erreur à la modification.",
+      });
     }
   }
 
-  function handleDelete(id) {
-    console.log("DELETE — étape 06, id =", id);
+  async function handleDelete(id) {
+    clearFeedback();
+
+    const article = articles.find((a) => a.id === id);
+    const titre = article?.titre ?? `#${id}`;
+
+    const confirmed = window.confirm(
+      `Supprimer l'article « ${titre} » ?\n\nCette action est définitive.`
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      await deleteArticle(id);
+      await loadArticles();
+      setFeedback({ type: "success", message: "Article supprimé." });
+    } catch (err) {
+      setFeedback({
+        type: "error",
+        message: err.message || "Erreur à la suppression.",
+      });
+    }
   }
 
   return (
@@ -88,6 +128,14 @@ function App() {
       <PageHeader title="Back-office — Blog Java" />
 
       <main>
+        {feedback && (
+          <FeedbackMessage
+            type={feedback.type}
+            message={feedback.message}
+            onClose={clearFeedback}
+          />
+        )}
+
         {mode === "list" && (
           <div className="toolbar">
             <button type="button" onClick={showCreate}>
