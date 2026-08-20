@@ -1,30 +1,62 @@
-/**
- * App — composant racine du back-office.
- * Pour l'instant : un titre seulement. Les listes et formulaires viendront aux étapes 03–05.
- */
-
 import { useEffect, useState } from "react";
+import PageHeader from "./components/PageHeader.jsx";
+import ArticleList from "./components/ArticleList.jsx";
+import LoadingMessage from "./components/LoadingMessage.jsx";
+import { fetchRecentArticles } from "./api/articles.js";
+import "./App.css";
 
-const API_URL = "http://localhost:8080";
-
+/**
+ * App — racine du back-office.
+ * Rôle : charger les articles (API), gérer loading/erreur, passer des props aux enfants.
+ */
 function App() {
-  // useState = « mémoire » du composant : ici, la liste d'articles (vide au début)
   const [articles, setArticles] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  // useEffect = « fais ceci une fois au chargement de la page »
   useEffect(() => {
-    fetch(`${API_URL}/articles`)
-      .then((response) => response.json())
-      .then((data) => setArticles(data))
-      .catch((error) => console.error("Erreur fetch :", error));
+    async function loadArticles() {
+      try {
+        setIsLoading(true);
+        setError(null);
+        const data = await fetchRecentArticles();
+        setArticles(data);
+      } catch (err) {
+        console.error(err);
+        setError(err.message || "Impossible de joindre l'API.");
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    loadArticles();
   }, []);
+
+  function handleEdit(id) {
+    console.log("Modifier l'article id =", id);
+  }
+
+  function handleDelete(id) {
+    console.log("Supprimer l'article id =", id);
+  }
 
   return (
     <div className="app">
-      <h1>Back-office — Blog Java</h1>
-      <p>Nombre d&apos;articles publiés reçus de l&apos;API : {articles.length}</p>
+      <PageHeader title="Back-office - Blog Java" />
+      <main>
+        {isLoading && <LoadingMessage />}
+
+        {error && <p className="error-message">{error}</p>}
+
+        {!isLoading && !error && (
+          <ArticleList
+            articles={articles}
+            onEdit={handleEdit}
+            onDelete={handleDelete}
+          />
+        )}
+      </main>
     </div>
   );
 }
 
-export default App
+export default App;
