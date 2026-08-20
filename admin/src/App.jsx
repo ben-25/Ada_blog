@@ -1,53 +1,128 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import PageHeader from "./components/PageHeader.jsx";
 import ArticleList from "./components/ArticleList.jsx";
+import ArticleForm from "./components/ArticleForm.jsx";
 import LoadingMessage from "./components/LoadingMessage.jsx";
-import { fetchRecentArticles } from "./api/articles.js";
+import {
+  fetchRecentArticles,
+  createArticle,
+  updateArticle,
+} from "./api/articles.js";
 import "./App.css";
 
-/**
- * App — racine du back-office.
- * Rôle : charger les articles (API), gérer loading/erreur, passer des props aux enfants.
- */
 function App() {
   const [articles, setArticles] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  useEffect(() => {
-    async function loadArticles() {
-      try {
-        setIsLoading(true);
-        setError(null);
-        const data = await fetchRecentArticles();
-        setArticles(data);
-      } catch (err) {
-        console.error(err);
-        setError(err.message || "Impossible de joindre l'API.");
-      } finally {
-        setIsLoading(false);
-      }
+  // "list" | "create" | "edit"
+  const [mode, setMode] = useState("list");
+  const [editingArticle, setEditingArticle] = useState(null);
+
+  const loadArticles = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      const data = await fetchRecentArticles();
+      setArticles(data);
+    } catch (err) {
+      console.error(err);
+      setError(err.message || "Impossible de joindre l'API.");
+    } finally {
+      setIsLoading(false);
     }
-    loadArticles();
   }, []);
 
+  useEffect(() => {
+    loadArticles();
+  }, [loadArticles]);
+
+  function showList() {
+    setMode("list");
+    setEditingArticle(null);
+  }
+
+  function showCreate() {
+    setMode("create");
+    setEditingArticle(null);
+  }
+
   function handleEdit(id) {
-    console.log("Modifier l'article id =", id);
+    const article = articles.find((a) => a.id === id);
+    if (article) {
+      setEditingArticle(article);
+      setMode("edit");
+    }
+  }
+
+  async function handleCreateSubmit(payload) {
+    try {
+      await createArticle(payload);
+      await loadArticles();
+      showList();
+    } catch (err) {
+      alert(err.message || "Erreur à la création");
+    }
+  }
+
+  async function handleEditSubmit(payload) {
+    try {
+      await updateArticle(payload.id, {
+        titre: payload.titre,
+        contenu: payload.contenu,
+        publie: payload.publie,
+      });
+      await loadArticles();
+      showList();
+    } catch (err) {
+      alert(err.message || "Erreur à la modification");
+    }
   }
 
   function handleDelete(id) {
-    console.log("Supprimer l'article id =", id);
+    console.log("DELETE — étape 06, id =", id);
   }
 
   return (
     <div className="app">
-      <PageHeader title="Back-office - Blog Java" />
+      <PageHeader title="Back-office — Blog Java" />
+
       <main>
-        {isLoading && <LoadingMessage />}
+        {mode === "list" && (
+          <div className="toolbar">
+            <button type="button" onClick={showCreate}>
+              + Nouvel article
+            </button>
+          </div>
+        )}
 
-        {error && <p className="error-message">{error}</p>}
+        {mode === "create" && (
+          <ArticleForm
+            key="create"
+            initialValues={null}
+            submitLabel="Créer"
+            onSubmit={handleCreateSubmit}
+            onCancel={showList}
+          />
+        )}
 
-        {!isLoading && !error && (
+        {mode === "edit" && editingArticle && (
+          <ArticleForm
+            key={editingArticle.id}
+            initialValues={editingArticle}
+            submitLabel="Enregistrer"
+            onSubmit={handleEditSubmit}
+            onCancel={showList}
+          />
+        )}
+
+        {mode === "list" && isLoading && <LoadingMessage />}
+
+        {mode === "list" && error && (
+          <p className="error-message">{error}</p>
+        )}
+
+        {mode === "list" && !isLoading && !error && (
           <ArticleList
             articles={articles}
             onEdit={handleEdit}
